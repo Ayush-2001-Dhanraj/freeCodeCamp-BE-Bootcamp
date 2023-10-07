@@ -1,0 +1,6 @@
+The result from both files are
+first: This is the first text file
+second: This is the second text file
+The result from both files are
+first: This is the first text file
+second: This is the second text file
