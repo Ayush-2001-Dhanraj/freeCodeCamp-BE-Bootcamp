@@ -1,0 +1,14 @@
+<%- include("header.ejs") %>
+<form action="/create" method="post" class="d-flex flex-column container-sm">
+  <div class="mb-3">
+    <label for="title" class="form-label">Title</label>
+    <input value="<%= locals.title ? title : "" %>" type="text" class="form-control" id="title" name="title">
+  </div>
+  <div class="mb-3">
+    <label for="description" class="form-label">Description</label>
+    <textarea value="<%= locals.description ? description : "" %>" class="form-control" id="description" rows="3" name="description"></textarea>
+  </div>
+
+  <button type="submit" class="btn btn-primary">Submit</button>
+</form>
+<%- include("footer.ejs") %>

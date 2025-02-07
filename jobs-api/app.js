@@ -34,6 +34,9 @@ app.use(xss());
 app.use(cors());
 
 // routes
+app.get("/", (req, res) => {
+  res.send("jobs api");
+});
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/jobs", authenticated, jobsRoutes);
 
