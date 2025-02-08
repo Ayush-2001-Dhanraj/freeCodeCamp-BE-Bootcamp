@@ -2,6 +2,9 @@ import express from "express";
 import bodyParser from "body-parser";
 import pg from "pg";
 import bcrypt from "bcrypt";
+import passport from "passport";
+import { Strategy } from "passport-local";
+import session from "express-session";
 
 const app = express();
 const port = 3000;
@@ -20,6 +23,19 @@ db.connect();
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
 
+app.use(
+  session({
+    resave: false,
+    saveUninitialized: true,
+    secret: "TOPSECRET",
+    cookie: {
+      maxAge: 1000 * 60 * 60 * 24,
+    },
+  })
+);
+app.use(passport.initialize());
+app.use(passport.session());
+
 app.get("/", (req, res) => {
   res.render("home.ejs");
 });
@@ -30,6 +46,14 @@ app.get("/login", (req, res) => {
 
 app.get("/register", (req, res) => {
   res.render("register.ejs");
+});
+
+app.get("/secrets", (req, res) => {
+  if (req.isAuthenticated()) {
+    res.render("secrets.ejs");
+  } else {
+    res.redirect("/login");
+  }
 });
 
 app.post("/register", async (req, res) => {
@@ -45,11 +69,15 @@ app.post("/register", async (req, res) => {
         if (err) {
           console.log("Error hashing password", err);
         } else {
-          await db.query(
-            "INSERT INTO users (email, password) VALUES ($1, $2)",
+          const result = await db.query(
+            "INSERT INTO users (email, password) VALUES ($1, $2) RETURNING *",
             [username, hash]
           );
-          res.render("secrets.ejs");
+          const user = result.rows[0];
+          req.logIn(user, (err) => {
+            console.log(err);
+            res.redirect("/secrets");
+          });
         }
       });
     } else {
@@ -60,37 +88,53 @@ app.post("/register", async (req, res) => {
   }
 });
 
-app.post("/login", async (req, res) => {
-  const { username, password } = req.body;
+app.post(
+  "/login",
+  passport.authenticate("local", {
+    failureRedirect: "/login",
+    successRedirect: "/secrets",
+  })
+);
 
-  try {
-    const retrievedUser = await db.query(
-      "SELECT password from users where email = $1",
-      [username]
-    );
+passport.use(
+  new Strategy(async function verify(username, password, cb) {
+    try {
+      const retrievedUser = await db.query(
+        "SELECT * from users where email = $1",
+        [username]
+      );
 
-    if (retrievedUser.rows.length) {
-      bcrypt.compare(
-        password,
-        retrievedUser.rows[0].password,
-        (err, result) => {
-          if (err) {
-            console.log("Eror COmparing passwords", err);
-          } else {
-            if (result) {
-              res.render("secrets.ejs");
+      if (retrievedUser.rows.length) {
+        bcrypt.compare(
+          password,
+          retrievedUser.rows[0].password,
+          (err, result) => {
+            if (err) {
+              return cb(err);
             } else {
-              res.send("Password doesn't match.");
+              if (result) {
+                return cb(null, retrievedUser.rows[0]);
+              } else {
+                return cb(null, false);
+              }
             }
           }
-        }
-      );
-    } else {
-      res.send("User doesn't exists");
+        );
+      } else {
+        return cb("User doesn't exists");
+      }
+    } catch (e) {
+      return cb(e);
     }
-  } catch (e) {
-    console.log(e);
-  }
+  })
+);
+
+passport.serializeUser((user, cb) => {
+  cb(null, user);
+});
+
+passport.deserializeUser((user, cb) => {
+  cb(null, user);
 });
 
 app.listen(port, () => {
